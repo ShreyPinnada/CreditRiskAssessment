@@ -23,29 +23,75 @@ export default function LoanRiskPredictionApp() {
   const [formData, setFormData] = useState({
     person_age: 48,
     person_income: 120000,
-    person_home_ownership: 3, // 1: Rent, 2: Mortgage, 3: Own, 4: Other
-    person_emp_length: 15.0,
-    loan_intent: 0, // 0: Personal, 1: Education, 2: Medical, 3: Venture, 4: Home Improvement, 5: Debt Consolidation
-    loan_grade: 7, // 1-7 (A-G)
+    person_home_ownership: 3,
+    person_emp_length: 15,
+    loan_intent: 0,
+    loan_grade: 4,
     loan_amnt: 15000,
-    loan_int_rate: 7.5,
-    loan_percent_income: 0.125,
-    cb_person_default_on_file: 0, // 0: No, 1: Yes
+    loan_int_rate: 5.0,
+    cb_person_default_on_file: 0,
     cb_person_cred_hist_length: 20,
-    loan_to_income: 0.125,
-    age_income_interaction: 5760000,
-    loan_to_emp_length_ratio: 1000,
-    monthly_debt: 15000,
-    dti_ratio: 1.0,
-    risk_flag: 0, // 0: Low Risk, 1: High Risk
+    monthly_debt: 0,
+    dti_ratio: 0,
+    loan_percent_income: 0,
+    loan_to_income: 0,
+    age_income_interaction: 0,
+    loan_to_emp_length_ratio: 0,
+    risk_flag: 0,
   });
-
   const [activeTab, setActiveTab] = useState("personal");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [predictionResult, setPredictionResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formProgress, setFormProgress] = useState(50);
+
+  useEffect(() => {
+    const {
+      loan_amnt,
+      loan_int_rate,
+      person_income,
+      person_age,
+      person_emp_length,
+      loan_grade,
+      cb_person_default_on_file,
+    } = formData;
+
+    const monthly_debt = loan_amnt * (1 + loan_int_rate / 100); // interest is % based
+    const dti_ratio = person_income ? (monthly_debt * 12) / person_income : 0;
+    const loan_percent_income = person_income
+      ? (loan_amnt / person_income) * 100
+      : 0;
+    const loan_to_income = person_income
+      ? loan_amnt / person_income - loan_percent_income
+      : 0;
+    const age_income_interaction = person_age * person_income;
+    const loan_to_emp_length_ratio = person_emp_length
+      ? loan_amnt / person_emp_length
+      : 0;
+
+    const risk_flag =
+      cb_person_default_on_file === 1 && [3, 4, 5].includes(loan_grade) ? 1 : 0;
+
+    setFormData((prev) => ({
+      ...prev,
+      monthly_debt,
+      dti_ratio,
+      loan_percent_income,
+      loan_to_income,
+      age_income_interaction,
+      loan_to_emp_length_ratio,
+      risk_flag,
+    }));
+  }, [
+    formData.loan_amnt,
+    formData.loan_int_rate,
+    formData.person_income,
+    formData.person_age,
+    formData.person_emp_length,
+    formData.loan_grade,
+    formData.cb_person_default_on_file,
+  ]);
 
   useEffect(() => {
     // Calculate form completion percentage based on required fields
@@ -103,13 +149,24 @@ export default function LoanRiskPredictionApp() {
 
     try {
       setIsLoading(true); // Optional, in case it's not already set before this block
-
+      console.log(formData);
       const response = await fetch("http://127.0.0.1:5000/predict", {
         method: "POST", // change to "GET" if your API uses GET
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          person_age: formData.person_age,
+          person_income: formData.person_income,
+          person_home_ownership: formData.person_home_ownership,
+          person_emp_length: formData.person_emp_length,
+          loan_intent: formData.loan_intent,
+          loan_grade: formData.loan_grade,
+          loan_amnt: formData.loan_amnt,
+          loan_int_rate: formData.loan_int_rate,
+          cb_person_default_on_file: formData.cb_person_default_on_file,
+          cb_person_cred_hist_length: formData.cb_person_cred_hist_length,
+        }),
       });
 
       if (!response.ok) {
